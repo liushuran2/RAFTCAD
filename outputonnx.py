@@ -1,11 +1,12 @@
 
 import torch.onnx
 import os 
+os.environ["CUDA_VISIBLE_DEVICES"] = '3'
 from utils.utils import FlexibleNamespace
 import torch
 import torch.nn as nn
-from model.raft import RAFT
-outf = 'checkpt/RAFTCAD_result_multiscale_stack_2002_small/'
+from model.raft_trt import RAFT
+outf = '/home/shuran/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002'
 # Create a ConfigParser object
 tmp = FlexibleNamespace()
 # if os.path.exists(os.path.join(args_eval.model_path, 'args.json')):
@@ -22,11 +23,11 @@ if os.path.isfile(checkpoint_path):
     model.eval()
 
 # 定义导出路径
-onnx_file_path = outf + 'RAFTCAD_raw.onnx'
+onnx_file_path = outf + '/RAFTCAD_denoise.onnx'
 # 定义输入
-input1 = torch.randn(8, 1, 512, 512).cuda()
-input2 = torch.randn(8, 1, 512, 512).cuda()
-dummy_input = (input1, input2, 8, 1, None, True, False)
+input1 = torch.randn(17, 1, 512, 512).cuda()
+# input2 = torch.randn(8, 1, 512, 512).cuda()
+dummy_input = input1
 
 # 导出模型
 torch.onnx.export(model.module, 
