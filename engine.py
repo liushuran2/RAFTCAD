@@ -1,5 +1,6 @@
 import sys
-
+import pycuda.autoinit  # 自动初始化 CUDA 上下文
+import pycuda.driver as cuda
 from PIL import Image
 import argparse
 import os
@@ -21,7 +22,7 @@ from utils.frame_utils import *
 from utils.flow_viz import *
 from utils.utils import InputPadder, forward_interpolate, gaussian_blur
 from model.loss import calculate_gradient_loss, calculate_mse
-
+from utils.rigid_correction import *
 
 from datetime import datetime
 import wandb
@@ -902,5 +903,159 @@ def finetune_evaluate(model, criterion, full_dataloader, args, epoch, writer=Non
             #     #         writer.add_image(f'Eval/iter_{iii}', make_grid(torch.from_numpy(flow_pre_img).permute(0, 3, 1, 2), nrow=8, normalize=True), global_step)
                 
     return pred_data_list
+
+def test_tensorRT(engine, args, dataloader, session_name, data_property, output_path='test'):
+    context = engine.create_execution_context()
+    flow_prev, sequence_prev = None, None
+
+    frame_list = []
+    flow_list = []
+    # go over frames
+    steps = len(dataloader)
+    batch_size = 8
+    overlap_size = 2
+    for i, (image,template) in enumerate(dataloader):
+        template = template.unsqueeze(0)
+        # append the first frame
+        
+        # write image
+        # cv2.imwrite(os.path.join(output_path, 'image1.tiff'), image1.detach().cpu().numpy().squeeze())
+        # cv2.imwrite(os.path.join(output_path, 'image2.tiff'), image2.detach().cpu().numpy().squeeze())
+
+        # forward
+        # flow_pr = model(image1, image2, iters=iters, flow_init=flow_prev, test_mode=True) # note flow_prev is only used for warm start
+
+        # template = image[:,0,:,:,:]
+        batchsize, timepoints, c, h, w = image.shape
+        template = template.contiguous()
+
+        # time to batch
+        template = template.view(1, c, h, w).detach().cpu().numpy()
+        image = image.view(batchsize * timepoints, c, h, w).detach().cpu().numpy()
+
+        # rigid correction
+        for t in range(timepoints):
+            img2rigid = image[t,0]
+            shifts, src_freq, phasediff = register_translation(img2rigid, template[0,0], 10)
+            img_rigid = apply_shift_iteration(img2rigid, (-shifts[0], -shifts[1]))
+            image[t,0] = img_rigid
+
+
+        # 分配缓冲区
+        output_data = np.empty([1, 1, batch_size + 2 * overlap_size, 512, 512], dtype=np.float32)
+        input_data = np.concatenate((image, template), axis=0)
+
+        # 分配CUDA内存
+        d_input = cuda.mem_alloc(input_data.nbytes)
+        d_output = cuda.mem_alloc(output_data.nbytes)
+
+        # 将输入数据复制到GPU
+        cuda.memcpy_htod(d_input, input_data)
+        # 执行推理
+        bindings = [int(d_input), int(d_output)]
+        context.execute_v2(bindings)
+
+        # 将输出数据从GPU复制回主机
+        cuda.memcpy_dtoh(output_data, d_output)
+
+        data_pr = output_data
+        torch.cuda.empty_cache()
+        
+        # doublestage
+        if args.doublestage:
+            data_fisrt = np.transpose(output_data, (0, 2, 1, 3, 4))
+            # template = np.median(data_fisrt, axis=1, keepdims=True)
+            # template = template.detach().cpu().numpy()
+            data_fisrt = data_fisrt.reshape(batchsize * timepoints, c, h, w)
+
+            # 分配缓冲区
+            del output_data, input_data
+            output_data = np.empty([1, 1, batch_size + 2 * overlap_size, 512, 512], dtype=np.float32)
+            input_data = np.concatenate((image, template), axis=0)
+
+            # 分配CUDA内存
+            d_input = cuda.mem_alloc(input_data.nbytes)
+            d_output = cuda.mem_alloc(output_data.nbytes)
+
+            # 将输入数据复制到GPU
+            cuda.memcpy_htod(d_input, input_data)
+            # 执行推理
+            bindings = [int(d_input), int(d_output)]
+            context.execute_v2(bindings)
+
+            # 将输出数据从GPU复制回主机
+            cuda.memcpy_dtoh(output_data, d_output)
+
+            data_pr = output_data
+
+            # #third
+            # data_fisrt = data_pr.permute(0,2,1,3,4)
+            # template = torch.median(data_fisrt, dim=1, keepdim=True)[0].expand(-1, timepoints, -1, -1, -1).contiguous()
+            # template = template.view(batchsize * timepoints, c, h, w)
+            # data_fisrt = data_fisrt.view(batchsize * timepoints, c, h, w)
+            # flow_pr, data_pr = model(template, data_fisrt, iters=iters, timepoints=timepoints, flow_init=flow_prev, test_mode=True)
+        #Residual flow
+        # ROF = np.abs(flow_gt - flow_pr)
+        # ROF_img = flow_to_image(ROF)
+        # ROF_x = ROF[:,:,0]
+        # ROF_y = ROF[:,:,1]
+        # flow_gt_x = flow_gt[:,:,0]
+        # flow_gt_y = flow_gt[:,:,1]
+        # flow_pr_x = flow_pr[:,:,0]
+        # flow_pr_y = flow_pr[:,:,1]
+        # flow_gt_img = flow_to_image(flow_gt)
+        # flow_pr_img = flow_to_image(flow_pr)
+        # cv2.imwrite(os.path.join(output_path, 'ROF.tiff'), ROF_img)
+        # cv2.imwrite(os.path.join(output_path, 'flow_gt.tiff'), flow_gt_img)
+        # cv2.imwrite(os.path.join(output_path, 'flow_pr.tiff'), flow_pr_img)
+        # cv2.imwrite(os.path.join(output_path, 'ROF_x.tiff'), ROF_x)
+        # cv2.imwrite(os.path.join(output_path, 'ROF_y.tiff'), ROF_y)
+        # cv2.imwrite(os.path.join(output_path, 'flow_gt_x.tiff'), flow_gt_x)
+        # cv2.imwrite(os.path.join(output_path, 'flow_gt_y.tiff'), flow_gt_y)
+        # cv2.imwrite(os.path.join(output_path, 'flow_pr_x.tiff'), flow_pr_x)
+        # cv2.imwrite(os.path.join(output_path, 'flow_pr_y.tiff'), flow_pr_y)
+        if i == 0:
+            # data_pr_middle = data_pr[0,0, :batch_size+overlap_size].detach().cpu().numpy()
+            data_pr_middle = data_pr[0,0, :batch_size+overlap_size]
+        elif i == steps - 1:
+            # data_pr_middle = data_pr[0,0, overlap_size:].detach().cpu().numpy()
+            data_pr_middle = data_pr[0,0, overlap_size:]
+        else:
+            # data_pr_middle = data_pr[0,0, overlap_size:batch_size+overlap_size].detach().cpu().numpy()
+            data_pr_middle = data_pr[0,0, overlap_size:batch_size+overlap_size]
+        data_pr_middle = adjust_frame_intensity(data_pr_middle)
+        frame_list.extend(data_pr_middle)
+
+        # # warm start
+        # if warm_start:
+        #     flow_prev = forward_interpolate(flow_low[0])[None].cuda()
+
+    # write optical flow to file    
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    output_file = os.path.join(output_path, 'flow_{}.flo'.format(session_name))
+    # TODO check if it can write an array
+    # frame_utils.writeFlow(output_file, flow)
+
+
+    # normalize the output
+    video_array = np.stack(frame_list, axis=0).squeeze().astype(np.float32)
+    
+    # nan handle
+    video_array = np.nan_to_num(video_array, nan=0)
+    denorm_fun = lambda normalized_video: postprocessing_video(normalized_video, args.norm_type, data_property) 
+    video_array = denorm_fun(video_array)
+    # video_array = adjust_frame_intensity(video_array)
+    
+    # save the video
+    output_file = os.path.join(output_path, '{}_reg.tiff'.format(session_name))
+    # save_image(video_array, str(data_property["data_type"]), output_file)
+    save_image(video_array, 'uint16', output_file)
+
+    # save the gif
+    # output_file = os.path.join(output_path, '{}_reg.gif'.format(session_name))
+    # imageio.mimsave(output_file, video_array,'GIF',duration = 0.1)
+
 
 
