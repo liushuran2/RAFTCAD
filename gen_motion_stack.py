@@ -8,60 +8,57 @@ import numpy as np
 from scipy.ndimage import map_coordinates
 from skimage.transform import warp, AffineTransform
 import tifffile as tiff
+from utils.frame_utils import image_warp
 
-def imregister_wrapper(f2, u, v, f1=None):
-    if f1 is None:
-        f1 = f2
+# def imregister_wrapper(f2, u, v, f1=None):
+#     if f1 is None:
+#         f1 = f2
     
-    # Combine u and v into a 2-channel displacement field
-    w = np.zeros((*u.shape, 2), dtype=np.float32)
-    w[..., 0] = u
-    w[..., 1] = v
+#     # Combine u and v into a 2-channel displacement field
+#     w = np.zeros((*u.shape, 2), dtype=np.float32)
+#     w[..., 0] = u
+#     w[..., 1] = v
     
-    # Call the wrapper function
-    return imregister_wrapper_w(f2, w, f1)
+#     # Call the wrapper function
+#     return imregister_wrapper_w(f2, w, f1)
 
-def imregister_wrapper_w(f2, w, f1, interpolation_method='cubic'):
-    if f1 is None:
-        f1 = f2
+# def imregister_wrapper_w(f2, w, f1, interpolation_method='cubic'):
+#     if f1 is None:
+#         f1 = f2
     
-    # Ensure that the sizes of the input arrays match
-    assert f2.shape[:2] == w.shape[:2] and f1.shape[:2] == w.shape[:2], \
-        f"Input shapes do not match: f2 = {f2.shape}, f1 = {f1.shape}, w = {w.shape}"
+#     registered = np.zeros_like(f2, dtype=np.float32)
     
-    registered = np.zeros_like(f2, dtype=np.float32)
+#     # Perform the warp operation for each channel (if f2 is a multi-channel image)
+#     registered = imwarp(f2, w, interpolation_method)
     
-    # Perform the warp operation for each channel (if f2 is a multi-channel image)
-    registered = imwarp(f2, w, interpolation_method)
+#     # Handle NaN values in the warped image and replace them with the corresponding values from f1
+#     registered[np.isnan(registered)] = f1[np.isnan(registered)]
     
-    # Handle NaN values in the warped image and replace them with the corresponding values from f1
-    registered[np.isnan(registered)] = f1[np.isnan(registered)]
-    
-    return registered
+#     return registered
 
-def imwarp(image, flow_field, interpolation_method='cubic'):
-    """
-    This function warps the image using the displacement field `flow_field`.
-    It supports cubic interpolation.
-    """
-    assert image.shape[:2] == flow_field.shape[:2], \
-        f"Image and flow field dimensions must match: {image.shape}, {flow_field.shape}"
+# def imwarp(image, flow_field, interpolation_method='cubic'):
+#     """
+#     This function warps the image using the displacement field `flow_field`.
+#     It supports cubic interpolation.
+#     """
+#     assert image.shape[:2] == flow_field.shape[:2], \
+#         f"Image and flow field dimensions must match: {image.shape}, {flow_field.shape}"
 
-    # Create meshgrid for coordinates
-    grid_x, grid_y = np.meshgrid(np.arange(image.shape[1]), np.arange(image.shape[0]))
+#     # Create meshgrid for coordinates
+#     grid_x, grid_y = np.meshgrid(np.arange(image.shape[1]), np.arange(image.shape[0]))
 
-    # Compute displaced coordinates
-    coords_x = grid_x + flow_field[..., 0]
-    coords_y = grid_y + flow_field[..., 1]
+#     # Compute displaced coordinates
+#     coords_x = grid_x + flow_field[..., 0]
+#     coords_y = grid_y + flow_field[..., 1]
 
-    # Perform interpolation using map_coordinates
-    if interpolation_method == 'cubic':
-        warped_image = map_coordinates(image, [coords_y, coords_x], order=3, mode='nearest', cval=np.nan)
-    else:
-        # Default to nearest neighbor if interpolation method is unknown
-        warped_image = map_coordinates(image, [coords_y, coords_x], order=1, mode='nearest', cval=np.nan)
+#     # Perform interpolation using map_coordinates
+#     if interpolation_method == 'cubic':
+#         warped_image = map_coordinates(image, [coords_y, coords_x], order=3, mode='nearest', cval=np.nan)
+#     else:
+#         # Default to nearest neighbor if interpolation method is unknown
+#         warped_image = map_coordinates(image, [coords_y, coords_x], order=1, mode='nearest', cval=np.nan)
 
-    return warped_image
+#     return warped_image
 
 
 # from your_module import imregister_wrapper
@@ -81,7 +78,7 @@ for i, dir_name in enumerate(dirinfo):
     curr_dir = os.path.join(source_dir, dir_name)
     
     # 读取两帧图像
-    file_name = os.path.join(curr_dir, 'Fsim_10mW.tiff')
+    file_name = os.path.join(curr_dir, 'Fsim_50mW.tiff')
     # neuron_mask_path = os.path.join(curr_dir, 'NeuronMask.mat')  # 假设此处是读取 `.mat` 文件
     frames = tiff.imread(file_name)
 
@@ -94,7 +91,7 @@ for i, dir_name in enumerate(dirinfo):
 
         for frame_idx in range(2, 9):  # 从 2 到 8
             index_2 = index_1 + frame_idx - 1
-            frame_2 = frames
+            frame_2 = frames[index_2]
 
             random_integer = random.randint(0, 10)
             u = np.random.rand(5 + random_integer, 5 + random_integer) - 0.5
@@ -107,7 +104,9 @@ for i, dir_name in enumerate(dirinfo):
             v = zoom(v, (frame_1.shape[0] / v.shape[0], frame_1.shape[1] / v.shape[1]), order=3)
 
             # 进行图像扭曲
-            warp_frame_2 = imregister_wrapper(frame_2, u, v)
+            # warp_frame_2 = imregister_wrapper(frame_2, u, v)
+            w = np.stack((u, v), axis=-1)
+            warp_frame_2 = image_warp(frame_2, w)
             imagePairs[ind, frame_idx - 1, :, :] = warp_frame_2.astype(np.float32)
             motion_field[ind, frame_idx - 1, 0, :, :] = u.astype(np.float32)
             motion_field[ind, frame_idx - 1, 1, :, :] = v.astype(np.float32)
@@ -120,7 +119,7 @@ for i, dir_name in enumerate(dirinfo):
 
 
 # 定义文件名
-filename = f'/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200/NA_0.80_Hz_30_D_0_pow_150/N_{imagePairs.shape[0]}_scale_{scale_x}_stack_8_multiscale_10mW.h5'
+filename = f'/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200/N_{imagePairs.shape[0]}_scale_{scale_x}_stack_8_multiscale_50mW.h5'
 
 # 创建 HDF5 文件并保存数据
 with h5py.File(filename, 'w') as f:

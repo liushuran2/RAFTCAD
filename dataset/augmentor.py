@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 #  modify for non-colorful images
 class FlowAugmentor:
-    def __init__(self, crop_size, min_scale=-0.2, max_scale=0.5, do_flip=True):
+    def __init__(self, crop_size, min_scale=-0.2, max_scale=0.5, do_flip=True, do_rotate=True):
         
         # spatial augmentation params
         self.crop_size = crop_size
@@ -25,8 +25,13 @@ class FlowAugmentor:
 
         # flip augmentation params
         self.do_flip = do_flip
-        self.h_flip_prob = 0.5
-        self.v_flip_prob = 0.5
+        self.h_flip_prob = 0
+        self.v_flip_prob = 0
+
+        # rotate augmentation params
+        self.do_rotate = do_rotate
+        self.left_rotate_prob = 0
+        self.right_rotate_prob = 1
 
         # erase augmentation params
         self.eraser_aug_prob = 0.3
@@ -191,13 +196,34 @@ class FinetuneAugmentor:
         if self.do_flip:
             if np.random.rand() < self.h_flip_prob: # h-flip
                 img = np.flip(img, axis=2)
+                flow = np.flip(flow, axis=2)
 
                 factor = np.array([1.0, -1.0])
+                flow = flow * factor[None, :, None, None]   
 
             if np.random.rand() < self.v_flip_prob: # v-flip
                 img = np.flip(img, axis=3)
+                flow = np.flip(flow, axis=3)
 
                 factor = np.array([-1.0, 1.0])
+                flow = flow * factor[None, :, None, None]
+
+        if self.do_rotate:
+            if np.random.rand() < self.left_rotate_prob:
+                img = np.rot90(img, k=1, axes=(2, 3))
+                flow = np.rot90(flow, k=1, axes=(2, 3))
+
+                flow_tmp = flow
+                flow[:, 0, :, :] = -flow_tmp[:, 1, :, :]
+                flow[:, 1, :, :] = flow_tmp[:, 0, :, :]
+
+            if np.random.rand() < self.right_rotate_prob:
+                img = np.rot90(img, k=3, axes=(2, 3))
+                flow = np.rot90(flow, k=3, axes=(2, 3))
+
+                flow_tmp = flow
+                flow[:, 0, :, :] = flow_tmp[:, 1, :, :]
+                flow[:, 1, :, :] = -flow_tmp[:, 0, :, :]
 
         if img.shape[0] - self.crop_size[0] == 0:
             y0 = 0
@@ -221,7 +247,7 @@ class FinetuneAugmentor:
         # img1, img2 = self.eraser_transform(img1, img2)
         # img1, img2, flow = self.spatial_transform(img1, img2, flow)
 
-        #GT-image
+        # GT-image
         img = self.spatial_transform(img)
 
         img = np.ascontiguousarray(img)

@@ -3,8 +3,8 @@ import sys
 
 import argparse
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
-# 0: blur20 1：frame_blur20 2: noise20 3:noise15
+os.environ["CUDA_VISIBLE_DEVICES"] = '1,2,7'
+# 
 import cv2
 import time
 import numpy as np
@@ -20,15 +20,12 @@ from torch.utils.data import Subset, SubsetRandomSampler, DataLoader
 
 # implemented
 from model.raft import RAFT
-from model.spynet import SPyNet
 from dataset.datasets import *
 from engine import *
 from model.loss import sequence_loss, sequence_maskedloss
 
 
 # logging related
-import wandb 
-from wandb import sdk as wanbd_sdk
 import socket
 from datetime import datetime, timedelta
 
@@ -66,7 +63,7 @@ def train(args):
 
     ################## setup dataloader  
     # train dataset  
-    aug_params = {'crop_size': args.aug_image_size, 'min_scale': args.aug_min_scale, 'max_scale': args.aug_max_scale, 'do_flip': args.aug_flip}
+    aug_params = {'crop_size': args.aug_image_size, 'min_scale': args.aug_min_scale, 'max_scale': args.aug_max_scale, 'do_flip': args.aug_flip, 'do_rotate': args.aug_rotate}
     # aug_params = None
     train_dataset = FlowDataset(args, args.data_path, aug_params)
 
@@ -88,7 +85,7 @@ def train(args):
 
     # train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, sampler=train_sampler,
     #                                                worker_init_fn=worker_init_fn)
-    val_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, sampler=val_sampler,
+    val_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, shuffle=False, sampler=val_sampler,
                                                  num_workers=1, pin_memory=True, persistent_workers=True,
                                                  drop_last=True, worker_init_fn=worker_init_fn)
 
@@ -151,28 +148,6 @@ def train(args):
         if checkpoint is not None:
             args.start_epoch = checkpoint['epoch'] 
         args.start_epoch = max(args.start_epoch, 0)
-
-
-    ################## before run, configure wand
-    if args.wandb_flag:
-        wandb.init(
-            # mode="offline",
-            # Set the project where this run will be logged
-            project=args.project_name, 
-            # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
-            name=f"hnerv_large_data_{args.outf}", 
-            # Track hyperparameters and run metadata
-            config={
-                "lr": args.lr,
-                "architecture": "CNN",
-                "dataset": args.data_path,
-                "epochs": args.epochs,
-            },
-            dir=args.outf # this makes saving logs not in the default dir
-        )
-        wandb.config.update(args)
-        # watch everything
-        wandb.watch(models=model,log='all') # note the default log frequency is 1k steps
 
     ################## Training
     start = datetime.now()
@@ -240,8 +215,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # high-level settings
     parser.add_argument('--project_name', type=str, default='RAFT', help='this used for wandb saving')
-    parser.add_argument('--data_path', type=str, default='DATA/N_2002_scale_10_stack_8_multiscale.h5', help='data path for vid')
-    parser.add_argument('--outf', type=str, default='checkpt/RAFTCAD_result_multiscale_stack_2002_small', help='data path for vid')
+    parser.add_argument('--data_path', type=str, default='/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200/N_3600_scale_10_stack_8_multiscale_10mW.h5', help='data path for vid')
+    parser.add_argument('--outf', type=str, default='/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600', help='data path for vid')
     # parser.add_argument('--data_path', type=str, default='../../Dataset/Gen_motion_free_pair_frame/N_99_scale_10.h5', help='data path for vid')
     parser.add_argument('--norm_type', type=str, default='robust', help='video normalization methods')
     parser.add_argument('--wandb_flag', type=bool, default=False)
@@ -260,6 +235,7 @@ if __name__ == '__main__':
     parser.add_argument('--aug_min_scale', type=float, default=0.2, help='Minimum scale for augmentation')
     parser.add_argument('--aug_max_scale', type=float, default=0.5, help='Maximum scale for augmentation')
     parser.add_argument('--aug_flip', type=bool, default=True, help='Whether to flip the image for augmentation')
+    parser.add_argument('--aug_rotate', type=bool, default=True, help='Whether to rotate the image for augmentation')
 
     # General training setups
     parser.add_argument('--manualSeed', type=int, default=13, help='manual seed')
@@ -268,8 +244,8 @@ if __name__ == '__main__':
     parser.add_argument('--eval_freq', type=int, default=5, help='evaluation frequency,  added to suffix!!!!')
     parser.add_argument('--not_resume', action='store_true', default = False, help='not resume from latest checkpoint')
 
-    parser.add_argument('-b', '--batchSize', type=int, default=2, help='input batch size')
-    parser.add_argument('--gpus', type=int, nargs='+', default=[0,1])
+    parser.add_argument('-b', '--batchSize', type=int, default=3, help='input batch size')
+    parser.add_argument('--gpus', type=int, nargs='+', default=[0,1,2])
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
 
     # optimizer, for AdamW

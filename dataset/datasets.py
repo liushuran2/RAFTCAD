@@ -43,8 +43,8 @@ class FlowDataset(data.Dataset):
         self.img_hdf5 = h5py.File(self.hdf5_file, 'r')
         self.img_list = self.img_hdf5['image_pairs'] # if you want dataset.   
         self.flow_list= self.img_hdf5['motions']
-        self.img_list = np.transpose(self.img_list, axes=(3,2,1,0))
-        self.flow_list = np.transpose(self.flow_list, axes=(4,3,2,1,0))
+        # self.img_list = np.transpose(self.img_list, axes=(3,2,1,0))
+        # self.flow_list = np.transpose(self.flow_list, axes=(4,3,2,1,0))
         # mask_image
         # self.mask_list = self.img_hdf5['mask']
 
@@ -172,23 +172,25 @@ class FlowTestDataset(data.Dataset):
         self.summary_image = torch.median(self.video, dim=0, keepdim=False)[0]
         # self.summary_image = self.video[0]
 
+        self.batch_size = 10
+        self.overlap_size = 2
+
     def __getitem__(self, index):
 
         # Read a pair of images
-        img = self.video[index * 8 : index * 8 + 16] # should be 8 x 512 x 512
-        
+        img = self.video[index * self.batch_size : (index + 1) * self.batch_size + 2*self.overlap_size] # should be 8 x 512 x 512
 
         # cast to numpy
         img = np.array(img).astype(np.float32)
  
-
         # Convert to PyTorch tensors     
         img = torch.from_numpy(img).unsqueeze(1)  # change to 8 x 1 x 512 x 512
         return img, self.summary_image
 
 
     def __len__(self):
-        return (len(self.video) - 8) // 8
+        # return (len(self.video) - 8) // 8
+        return (len(self.video) - 2*self.overlap_size) // self.batch_size
     
 
 class FlowValidDataset(data.Dataset):

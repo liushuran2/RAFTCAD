@@ -25,7 +25,6 @@ from model.loss import calculate_gradient_loss, calculate_mse
 from utils.rigid_correction import *
 
 from datetime import datetime
-import wandb
 
 
 # 
@@ -85,10 +84,7 @@ def train_one_epoch(model, optimizer, criterion, scheduler, train_dataloader, sc
             # image1, image2, flow, gt, mask, valid = [data_to_gpu(x, device) for x in data_blob]
         
         # write image
-        # io.imsave(os.path.join('test', 'image_gt.tif'), image[0,0].detach().cpu().numpy().squeeze())
-        # io.imsave(os.path.join('test', 'image_ori.tif'), image[0,3].detach().cpu().numpy().squeeze())
-        # cv2.imwrite(os.path.join('test', 'image2.tif'), image[0,:,].detach().cpu().numpy().squeeze())
-        # cv2.imwrite(os.path.join('test', 'gt.tiff'), gt[2].detach().cpu().numpy().squeeze())
+        # io.imsave(os.path.join('test', 'image_ori.tif'), image[0,:,0].detach().cpu().numpy().squeeze())
         # image2 = image[0].permute(0, 2, 3, 1).cpu().numpy() # H x W x C
         # flow_gt = flow[0].detach().cpu().numpy().squeeze()
         # flow_gt = np.transpose(np.array(flow_gt), (0, 2, 3, 1))
@@ -184,14 +180,6 @@ def train_one_epoch(model, optimizer, criterion, scheduler, train_dataloader, sc
         # lr adjustment. modified by yz. 02272023. using built-in scheduler
         lr= optimizer.param_groups[0]['lr']
         
-        # wandb training
-        if args.wandb_flag:
-            wandb_metrics = {"train/train_loss": loss.item(), 
-                    "train/train_metrics": metrics['epe'], 
-                    "train/epoch": epoch,
-                    "train/norm_epoch": norm_epoch, 
-                    "train/lr": lr}
-            wandb.log(wandb_metrics)
         
         # adjus the learning rate
         scheduler.step()
@@ -335,12 +323,6 @@ def evaluate(model, criterion, full_dataloader, args, epoch, writer=None):
 
         loss = flow_loss * 0.5 + data_loss * 0.5
         
-        # wandb evaluation
-        if args.wandb_flag:
-            wandb_metrics = {"eval/eval_loss": loss.item(), 
-                    "eval/eval_metrics": metrics['epe'], 
-                    "eval/epoch": epoch}
-            wandb.log(wandb_metrics)
 
         # append the loss
         pred_loss_list.append(loss.item())
@@ -395,6 +377,9 @@ def test(model, args, dataloader, session_name, data_property, iters=12, warm_st
     frame_list = []
     flow_list = []
     # go over frames
+    steps = len(dataloader)
+    batch_size = 20
+    overlap_size = 3
     for i, (image,template) in enumerate(dataloader):
         image, template = [data_to_gpu(x, device) for x in [image, template]]
         template = template.unsqueeze(0)
@@ -424,7 +409,7 @@ def test(model, args, dataloader, session_name, data_property, iters=12, warm_st
             template = torch.median(data_fisrt, dim=1, keepdim=True)[0].expand(-1, timepoints, -1, -1, -1).contiguous()
             template = template.view(batchsize * timepoints, c, h, w)
             data_fisrt = data_fisrt.view(batchsize * timepoints, c, h, w)
-            flow_pr, data_pr = model(template, data_fisrt, iters=iters, timepoints=timepoints, flow_init=flow_prev, test_mode=True)
+            flow_pr, data_pr = model(template, data_fisrt, iters=iters, timepoints=timepoints, flow_init=flow_prev, test_mode=True, denoise=False)
 
             # #third
             # data_fisrt = data_pr.permute(0,2,1,3,4)
@@ -452,7 +437,12 @@ def test(model, args, dataloader, session_name, data_property, iters=12, warm_st
         # cv2.imwrite(os.path.join(output_path, 'flow_gt_y.tiff'), flow_gt_y)
         # cv2.imwrite(os.path.join(output_path, 'flow_pr_x.tiff'), flow_pr_x)
         # cv2.imwrite(os.path.join(output_path, 'flow_pr_y.tiff'), flow_pr_y)
-        data_pr_middle = data_pr[0,0, 3:11].detach().cpu().numpy()
+        if i == 0:
+            data_pr_middle = data_pr[0,0, :batch_size+overlap_size].detach().cpu().numpy()
+        elif i == steps - 1:
+            data_pr_middle = data_pr[0,0, overlap_size:].detach().cpu().numpy()
+        else:
+            data_pr_middle = data_pr[0,0, overlap_size:batch_size+overlap_size].detach().cpu().numpy()
         data_pr_middle = adjust_frame_intensity(data_pr_middle)
         frame_list.extend(data_pr_middle)
 
@@ -721,15 +711,6 @@ def finetune_one_epoch(model, optimizer, criterion, scheduler, train_dataloader,
         # lr adjustment. modified by yz. 02272023. using built-in scheduler
         lr= optimizer.param_groups[0]['lr']
         
-        # wandb training
-        if args.wandb_flag:
-            wandb_metrics = {"train/train_loss": loss.item(), 
-                    "train/train_metrics": metrics['epe'], 
-                    "train/epoch": epoch,
-                    "train/norm_epoch": norm_epoch, 
-                    "train/lr": lr}
-            wandb.log(wandb_metrics)
-        
         # adjus the learning rate
         scheduler.step()
         
@@ -904,6 +885,7 @@ def finetune_evaluate(model, criterion, full_dataloader, args, epoch, writer=Non
                 
     return pred_data_list
 
+
 def test_tensorRT(engine, args, dataloader, session_name, data_property, output_path='test'):
     context = engine.create_execution_context()
     flow_prev, sequence_prev = None, None
@@ -912,7 +894,7 @@ def test_tensorRT(engine, args, dataloader, session_name, data_property, output_
     flow_list = []
     # go over frames
     steps = len(dataloader)
-    batch_size = 8
+    batch_size = 10
     overlap_size = 2
     for i, (image,template) in enumerate(dataloader):
         template = template.unsqueeze(0)
@@ -944,6 +926,7 @@ def test_tensorRT(engine, args, dataloader, session_name, data_property, output_
         # 分配缓冲区
         output_data = np.empty([1, 1, batch_size + 2 * overlap_size, 512, 512], dtype=np.float32)
         input_data = np.concatenate((image, template), axis=0)
+        # input_data = input_data.cpu().numpy()
 
         # 分配CUDA内存
         d_input = cuda.mem_alloc(input_data.nbytes)
@@ -1056,6 +1039,5 @@ def test_tensorRT(engine, args, dataloader, session_name, data_property, output_
     # save the gif
     # output_file = os.path.join(output_path, '{}_reg.gif'.format(session_name))
     # imageio.mimsave(output_file, video_array,'GIF',duration = 0.1)
-
 
 
