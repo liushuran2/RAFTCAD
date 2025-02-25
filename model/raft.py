@@ -169,6 +169,10 @@ class RAFT(nn.Module):
 
         if test_mode:
             image2_tmp = image2.permute(0, 2, 3, 1)
+            
+            # skip image_warp_tensor
+            # flow_up = torch.zeros_like(flow_up)
+
             image2_warp = image_warp_tensor(image2_tmp, -flow_up.permute(0,2,3,1))
             image2_warp = image2_warp.permute(0, 3, 1, 2).view(-1, timepoints, c, h, w)
             if denoise:

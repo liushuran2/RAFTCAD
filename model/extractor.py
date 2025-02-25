@@ -234,11 +234,11 @@ class SmallEncoder(nn.Module):
                     nn.init.constant_(m.bias, 0)
 
     def _make_layer(self, dim, stride=1):
-        # layer1 = BottleneckBlock(self.in_planes, dim, self.norm_fn, stride=stride)
-        # layer2 = BottleneckBlock(dim, dim, self.norm_fn, stride=1)
+        layer1 = BottleneckBlock(self.in_planes, dim, self.norm_fn, stride=stride)
+        layer2 = BottleneckBlock(dim, dim, self.norm_fn, stride=1)
 
-        layer1 = ResidualBlock(self.in_planes, dim, self.norm_fn, stride=stride)
-        layer2 = ResidualBlock(dim, dim, self.norm_fn, stride=1)
+        # layer1 = ResidualBlock(self.in_planes, dim, self.norm_fn, stride=stride)
+        # layer2 = ResidualBlock(dim, dim, self.norm_fn, stride=1)
         layers = (layer1, layer2)
     
         self.in_planes = dim

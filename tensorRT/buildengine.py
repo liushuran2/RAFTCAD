@@ -30,9 +30,9 @@ def build_engine(onnx_file_path, trt_model_path, max_workspace_size=1 << 36, fp1
 
     # 根据您的模型输入名称和形状进行调整
     input_name = "input"  
-    min_shape = (16, 1, 512, 512)
-    opt_shape = (16, 1, 512, 512)
-    max_shape = (16, 1, 512, 512)
+    min_shape = (15, 1, 512, 512)
+    opt_shape = (15, 1, 512, 512)
+    max_shape = (15, 1, 512, 512)
     profile.set_shape(input_name, min_shape, opt_shape, max_shape)
     config.add_optimization_profile(profile)
 

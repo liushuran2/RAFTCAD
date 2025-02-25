@@ -16,41 +16,41 @@ def load_engine(trt_engine_path):
         return None
 
 
-# trt_path = '/home/shuran/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002/RAFTCAD_raw.trt'
-# engine = load_engine(trt_path)
-# if engine is None:
-#     print("加载引擎失败。")
-# context = engine.create_execution_context()
+trt_path = '/home/shuran/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002/RAFTCAD_denoise.trt'
+engine = load_engine(trt_path)
+if engine is None:
+    print("加载引擎失败。")
+context = engine.create_execution_context()
 
-# import time
-# starttime = time.time()
-# # 分配缓冲区
-# input_data = np.random.randn(11, 1, 512, 512).astype(np.float32)
-# output_data = np.empty([1, 1, 10, 512, 512], dtype=np.float32)
+import time
+starttime = time.time()
+# 分配缓冲区
+input_data = np.random.randn(15, 1, 512, 512).astype(np.float32)
+output_data = np.empty([1, 1, 14, 512, 512], dtype=np.float32)
 
-# # 分配CUDA内存
-# d_input = cuda.mem_alloc(input_data.nbytes)
-# d_output = cuda.mem_alloc(output_data.nbytes)
+# 分配CUDA内存
+d_input = cuda.mem_alloc(input_data.nbytes)
+d_output = cuda.mem_alloc(output_data.nbytes)
 
-# # 将输入数据复制到GPU
-# cuda.memcpy_htod(d_input, input_data)
-# # 执行推理
-# bindings = [int(d_input), int(d_output)]
-# context.execute_v2(bindings)
+# 将输入数据复制到GPU
+cuda.memcpy_htod(d_input, input_data)
+# 执行推理
+bindings = [int(d_input), int(d_output)]
+context.execute_v2(bindings)
 
-# # 将输出数据从GPU复制回主机
-# cuda.memcpy_dtoh(output_data, d_output)
+# 将输出数据从GPU复制回主机
+cuda.memcpy_dtoh(output_data, d_output)
 
-# endtime = time.time()
-# print(f"tensorRT推理时间: {endtime-starttime:.3f}s")
+endtime = time.time()
+print(f"tensorRT推理时间: {endtime-starttime:.3f}s")
 
-# # # 释放CUDA内存
-# # d_input.free()
-# # d_output.free()
-# # 释放引擎和上下文
-# # context.destroy()
-# # engine.destroy()
-# print("推理完成。")
+# # 释放CUDA内存
+d_input.free()
+d_output.free()
+# 释放引擎和上下文
+# context.destroy()
+# engine.destroy()
+print("推理完成。")
 
 # # Compare this with regular PyTorch inference
 # import os

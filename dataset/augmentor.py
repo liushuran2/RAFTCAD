@@ -25,13 +25,13 @@ class FlowAugmentor:
 
         # flip augmentation params
         self.do_flip = do_flip
-        self.h_flip_prob = 0
-        self.v_flip_prob = 0
+        self.h_flip_prob = 0.5
+        self.v_flip_prob = 0.5
 
         # rotate augmentation params
         self.do_rotate = do_rotate
-        self.left_rotate_prob = 0
-        self.right_rotate_prob = 1
+        self.left_rotate_prob = 0.5
+        self.right_rotate_prob = 0.5
 
         # erase augmentation params
         self.eraser_aug_prob = 0.3
