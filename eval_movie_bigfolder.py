@@ -34,13 +34,13 @@ import socket
 from datetime import datetime, timedelta
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '6'
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # test file
-    parser.add_argument('--model_path', default='/home/user/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002/', help='path to the trained model')
+    parser.add_argument('--model_path', default='/home/shuran/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002/', help='path to the trained model')
     parser.add_argument('--gt_flow', type=str, nargs='+', default=None, 
                         help='test file for evaluation')
     parser.add_argument('--gpus', type=int, nargs='+', default=[0])
@@ -80,7 +80,7 @@ if __name__ == '__main__':
         model.cuda()
         model.eval()
 
-    trt_path = '/home/user/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002/RAFTCAD_denoise.trt'
+    trt_path = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_50mW/DeepIE_tensorRT.trt'
     engine = load_engine(trt_path)
     if engine is None:
         print("加载引擎失败。")
@@ -97,8 +97,9 @@ if __name__ == '__main__':
         # directory_path = '/mnt/nas/YZ_personal_storage/Private/MC/2p_fiberscopy/' + str(directory_id+1)+ '/'
         # directory_path = '/mnt/nas00/YZ_personal_storage/Private/MC/2p_benchtop/2p_148d/trial_2p_' + str(directory_id+1) + '/'
         # directory_path = 'DATA/'
+        directory_path = '/mnt/nas01/LSR/DATA/2p_bench/HP01/HCA301-Axon-P5-oir/HCA301-Axon-P5-oir/'
         # directory_path = '/mnt/nas00/YZ_personal_storage/Private/MC/simulation_noise/90W_10scale_5range/'
-        directory_path = '/mnt/nas01/LSR/DATA/2p_bench/HP01/HP01/'
+        # directory_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/10mW/'
         loadframe_path = directory_path
         # loadframe_path = directory_path + 'Self_Rigid_result/'
         all_files = os.listdir(loadframe_path)
@@ -107,7 +108,8 @@ if __name__ == '__main__':
         tiff_files = [filename for filename in all_files if filename.endswith('-1.tif')]
         tiff_files.sort()
 
-        save_path = directory_path + 'DeepIE/'
+        save_path = directory_path + 'DeepIE_50mW/'
+        # save_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/result/DeepIE/90mWwith10mW/'
 
         if not os.path.exists(save_path):
             os.makedirs(save_path)

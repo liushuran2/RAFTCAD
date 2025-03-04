@@ -3,8 +3,9 @@ import sys
 
 import argparse
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '1,2,7'
-# 
+os.environ["CUDA_VISIBLE_DEVICES"] = '6'
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+# 1:50mW 2:90mW 3:10mW_based50mW_all 4:130mW 6:10mW_based50mW_fix
 import cv2
 import time
 import numpy as np
@@ -85,8 +86,8 @@ def train(args):
 
     # train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, sampler=train_sampler,
     #                                                worker_init_fn=worker_init_fn)
-    val_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, shuffle=False, sampler=val_sampler,
-                                                 num_workers=1, pin_memory=True, persistent_workers=True,
+    val_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, sampler=val_sampler, shuffle=False,
+                                                 num_workers=args.workers, pin_memory=True, persistent_workers=True,
                                                  drop_last=True, worker_init_fn=worker_init_fn)
 
     # test dataset, no shuffle. 
@@ -115,6 +116,14 @@ def train(args):
 
     # to GPU
     model.cuda()
+
+    # only train the 3dUNet
+    if args.fix:
+        for name, param in model.named_parameters():    
+            if 'Unet' in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
 
     # set to train mode
     model.train()
@@ -216,7 +225,7 @@ if __name__ == '__main__':
     # high-level settings
     parser.add_argument('--project_name', type=str, default='RAFT', help='this used for wandb saving')
     parser.add_argument('--data_path', type=str, default='/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200/N_3600_scale_10_stack_8_multiscale_10mW.h5', help='data path for vid')
-    parser.add_argument('--outf', type=str, default='/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600', help='data path for vid')
+    parser.add_argument('--outf', type=str, default='/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_10mW_baseon50mW_fix', help='data path for vid')
     # parser.add_argument('--data_path', type=str, default='../../Dataset/Gen_motion_free_pair_frame/N_99_scale_10.h5', help='data path for vid')
     parser.add_argument('--norm_type', type=str, default='robust', help='video normalization methods')
     parser.add_argument('--wandb_flag', type=bool, default=False)
@@ -231,7 +240,7 @@ if __name__ == '__main__':
     # dataset and data augmentation
     parser.add_argument('--val_split', type=float, default=0.2)
     parser.add_argument('-j', '--workers', type=int, default=1, help='number of data loading workers')
-    parser.add_argument('--aug_image_size', type=int, nargs='+', default=[256, 256])
+    parser.add_argument('--aug_image_size', type=int, nargs='+', default=[256,256])
     parser.add_argument('--aug_min_scale', type=float, default=0.2, help='Minimum scale for augmentation')
     parser.add_argument('--aug_max_scale', type=float, default=0.5, help='Maximum scale for augmentation')
     parser.add_argument('--aug_flip', type=bool, default=True, help='Whether to flip the image for augmentation')
@@ -244,12 +253,12 @@ if __name__ == '__main__':
     parser.add_argument('--eval_freq', type=int, default=5, help='evaluation frequency,  added to suffix!!!!')
     parser.add_argument('--not_resume', action='store_true', default = False, help='not resume from latest checkpoint')
 
-    parser.add_argument('-b', '--batchSize', type=int, default=3, help='input batch size')
-    parser.add_argument('--gpus', type=int, nargs='+', default=[0,1,2])
+    parser.add_argument('-b', '--batchSize', type=int, default=4, help='input batch size')
+    parser.add_argument('--gpus', type=int, nargs='+', default=[0])
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
 
     # optimizer, for AdamW
-    parser.add_argument('--lr', type=float, default=5e-5)
+    parser.add_argument('--lr', type=float, default=5e-6)
     parser.add_argument('--wdecay', type=float, default=.00005)
     parser.add_argument('--epsilon', type=float, default=1e-8)
 
@@ -269,6 +278,7 @@ if __name__ == '__main__':
     # model config
     parser.add_argument('--small', action='store_true', default=False, help='use small model')
     parser.add_argument('--iters', type=int, default=12)
+    parser.add_argument('--fix', action='store_true', default=False, help='fix the RAFT part')
 
     # parser
     args = parser.parse_args()

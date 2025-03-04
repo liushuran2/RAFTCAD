@@ -65,7 +65,7 @@ from utils.frame_utils import image_warp
 
 source_dir = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200/NA_0.80_Hz_30_D_0_pow_150'  # 源文件夹
 dirinfo = os.listdir(source_dir)
-N_pair_per_file = 100  # 这个值需要根据你的实际情况设定
+N_pair_per_file = 70  # 这个值需要根据你的实际情况设定
 frame_N = 1000  # 这个值需要根据你的实际情况设定
 scale_x = 10  # 根据你的实际情况设置
 
@@ -78,7 +78,7 @@ for i, dir_name in enumerate(dirinfo):
     curr_dir = os.path.join(source_dir, dir_name)
     
     # 读取两帧图像
-    file_name = os.path.join(curr_dir, 'Fsim_50mW.tiff')
+    file_name = os.path.join(curr_dir, 'Fsim_30mW.tiff')
     # neuron_mask_path = os.path.join(curr_dir, 'NeuronMask.mat')  # 假设此处是读取 `.mat` 文件
     frames = tiff.imread(file_name)
 
@@ -119,7 +119,7 @@ for i, dir_name in enumerate(dirinfo):
 
 
 # 定义文件名
-filename = f'/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200/N_{imagePairs.shape[0]}_scale_{scale_x}_stack_8_multiscale_50mW.h5'
+filename = f'/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200/N_{imagePairs.shape[0]}_scale_{scale_x}_stack_8_multiscale_30mW.h5'
 
 # 创建 HDF5 文件并保存数据
 with h5py.File(filename, 'w') as f:

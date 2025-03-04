@@ -22,15 +22,12 @@ import scipy
 from scipy import io
 # implemented
 from model.raft import RAFT
-from model.spynet import SPyNet
 from dataset.datasets import *
 from engine import *
 from model.loss import sequence_loss
 
 
 # logging related
-import wandb 
-from wandb import sdk as wanbd_sdk
 import socket
 from datetime import datetime, timedelta
 

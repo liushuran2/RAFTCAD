@@ -21,15 +21,14 @@ import scipy
 from scipy import io
 # implemented
 from model.raft import RAFT
-from model.spynet import SPyNet
 from dataset.datasets import *
 from engine import *
 from model.loss import sequence_loss
-
+from tensorRT.loadengine import load_engine
 
 # logging related
-import wandb 
-from wandb import sdk as wanbd_sdk
+# import wandb 
+# from wandb import sdk as wanbd_sdk
 import socket
 from datetime import datetime, timedelta
 
@@ -40,7 +39,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # test file
-    parser.add_argument('--model_path', default='checkpt/RAFTCAD_result_multiscale_stack_2002/', help='path to the trained model')
+    parser.add_argument('--model_path', default='/home/shuran/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002/', help='path to the trained model')
     parser.add_argument('--gt_flow', type=str, nargs='+', default=None, 
                         help='test file for evaluation')
     parser.add_argument('--gpus', type=int, nargs='+', default=[0])
@@ -79,24 +78,31 @@ if __name__ == '__main__':
         model.cuda()
         model.eval()
 
+    trt_path = '/home/shuran/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002/RAFTCAD_denoise.trt'
+    engine = load_engine(trt_path)
+    if engine is None:
+        print("加载引擎失败。")
+
     # get the evaluating dataset
     test_dataloader_array = []
     args_eval.data_property  = []
     args_eval.norm_type = args_model.norm_type
 
-    for directory_id in range(1 ,26):
+    for directory_id in range(27):
         # directory_path = '/mnt/nas/YZ_personal_storage/Private/MC/NAOMi_2p_4/test_seq/' + str(directory_id+1) + '/'
         # loadframe_path = directory_path
         # directory_path = '/mnt/nas/YZ_personal_storage/Private/MC/mini2p/ca1/' + str(directory_id+1) + '/'
         # directory_path = '/mnt/nas/YZ_personal_storage/Private/MC/2p_fiberscopy/' + str(directory_id+1)+ '/'
-        directory_path = '/mnt/nas/YZ_personal_storage/Private/MC/2p_benchtop/2p_148d/trial_2p_' + str(directory_id+1) + '/motion/'
+        directory_path = '/mnt/nas00/YZ_personal_storage/Private/MC/2p_benchtop/2p_148d/trial_2p_' + str(directory_id+1) + '/motion/'
         # directory_path = 'DATA/'
-        loadframe_path = directory_path + 'Self_Rigid_result/'
+        # directory_path = '/mnt/nas00/YZ_personal_storage/Private/MC/simulation_noise/90W_10scale_5range/'
+        loadframe_path = directory_path
+        # loadframe_path = directory_path + 'Self_Rigid_result/'
         all_files = os.listdir(loadframe_path)
     
-        tiff_files = [filename for filename in all_files if filename.endswith('.tif')]
+        tiff_files = [filename for filename in all_files if filename.endswith('.tiff')]
 
-        save_path = directory_path + 'RAFTCAD_multiscale_stack_doublestage/'
+        save_path = directory_path + 'DeepIE_tensorRT/'
 
         if not os.path.exists(save_path):
             os.makedirs(save_path)
@@ -112,11 +118,12 @@ if __name__ == '__main__':
             # starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
             # starter.record()
             if args_eval.doublestage:
-                iters = 6
+                iters = 1
             else:
-                iters = 12
-            test(model, args_eval, test_dataloader, session_name, args_eval.data_property, 
-                 iters=iters, warm_start=False, output_path=save_path)
+                iters = 2
+            # test(model, args_eval, test_dataloader, session_name, args_eval.data_property, 
+            #      iters=iters, warm_start=False, output_path=save_path)
+            test_tensorRT(engine, args_eval, test_dataloader, session_name, args_eval.data_property, output_path=save_path)
         print(directory_id)
             # ender.record()
             # curr_time = starter.elapsed_time(ender)

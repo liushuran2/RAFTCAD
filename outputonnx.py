@@ -6,7 +6,7 @@ from utils.utils import FlexibleNamespace
 import torch
 import torch.nn as nn
 from model.raft_trt import RAFT
-outf = '/home/shuran/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002'
+outf = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_90mW'
 # Create a ConfigParser object
 tmp = FlexibleNamespace()
 # if os.path.exists(os.path.join(args_eval.model_path, 'args.json')):
@@ -23,9 +23,9 @@ if os.path.isfile(checkpoint_path):
     model.eval()
 
 # 定义导出路径
-onnx_file_path = outf + '/RAFTCAD_denoise.onnx'
+onnx_file_path = outf + '/DeepIE_tensorRT.onnx'
 # 定义输入
-input1 = torch.randn(17, 1, 512, 512).cuda()
+input1 = torch.randn(15, 1, 512, 512).cuda()
 # input2 = torch.randn(8, 1, 512, 512).cuda()
 dummy_input = input1
 
