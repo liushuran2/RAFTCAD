@@ -5,6 +5,7 @@ import sys
 import argparse
 import configparser
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = '3'
 import cv2
 import time
 import numpy as np
@@ -33,19 +34,18 @@ from tensorRT.loadengine import load_engine
 import socket
 from datetime import datetime, timedelta
 
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
-os.environ["CUDA_VISIBLE_DEVICES"] = '6'
+# os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # test file
-    parser.add_argument('--model_path', default='/home/shuran/RAFTCADSUN/checkpt/RAFTCAD_result_multiscale_stack_2002/', help='path to the trained model')
+    parser.add_argument('--model_path', default='/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_1920_50mW_ft10mW/', help='path to the trained model')
     parser.add_argument('--gt_flow', type=str, nargs='+', default=None, 
                         help='test file for evaluation')
     parser.add_argument('--gpus', type=int, nargs='+', default=[0])
     parser.add_argument('--add_blur', default=False, action='store_true')
-    parser.add_argument('--doublestage', default=True, action='store_true')
+    parser.add_argument('--doublestage', default=False, action='store_true')
 
     # parser
     args_eval = parser.parse_args()
@@ -80,10 +80,21 @@ if __name__ == '__main__':
         model.cuda()
         model.eval()
 
-    trt_path = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_50mW/DeepIE_tensorRT.trt'
-    engine = load_engine(trt_path)
-    if engine is None:
-        print("加载引擎失败。")
+    # load the network
+    # checkpoint_path = os.path.join('/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_130mW/', 'model_latest.pth')
+    # if os.path.isfile(checkpoint_path):
+    #     checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    #     model2 = nn.DataParallel(RAFT(args_model))
+    #     # model = SPyNet('https://download.openmmlab.com/mmediting/restorers/''basicvsr/spynet_20210409-c6c1bd09.pth')
+    #     model2.load_state_dict(checkpoint['state_dict'])
+    #     model2.cuda()
+    #     model2.eval()
+
+
+    # trt_path = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_50mW/DeepIE_tensorRT.trt'
+    # engine = load_engine(trt_path)
+    # if engine is None:
+    #     print("加载引擎失败。")
 
     # get the evaluating dataset
     test_dataloader_array = []
@@ -97,19 +108,20 @@ if __name__ == '__main__':
         # directory_path = '/mnt/nas/YZ_personal_storage/Private/MC/2p_fiberscopy/' + str(directory_id+1)+ '/'
         # directory_path = '/mnt/nas00/YZ_personal_storage/Private/MC/2p_benchtop/2p_148d/trial_2p_' + str(directory_id+1) + '/'
         # directory_path = 'DATA/'
-        directory_path = '/mnt/nas01/LSR/DATA/2p_bench/HP01/HCA301-Axon-P5-oir/HCA301-Axon-P5-oir/'
+        # directory_path = '/mnt/nas01/LSR/DATA/2p_bench/HP01/HCA301-Axon-P5-oir/HCA301-Axon-P5-oir/'
         # directory_path = '/mnt/nas00/YZ_personal_storage/Private/MC/simulation_noise/90W_10scale_5range/'
-        # directory_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/10mW/'
+        # directory_path = '/mnt/nas01/LSR/DATA/2p_bench/mini2p/mec/1/Self_Rigid_result/'
+        directory_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/10mW/'
         loadframe_path = directory_path
         # loadframe_path = directory_path + 'Self_Rigid_result/'
-        all_files = os.listdir(loadframe_path)
+        all_files = os.listdir(loadframe_path) 
         
     
-        tiff_files = [filename for filename in all_files if filename.endswith('-1.tif')]
+        tiff_files = [filename for filename in all_files if filename.endswith('.tiff')]
         tiff_files.sort()
 
-        save_path = directory_path + 'DeepIE_50mW/'
-        # save_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/result/DeepIE/90mWwith10mW/'
+        # save_path = directory_path + 'DeepIE_50mWftonaxon/'
+        save_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/result/scale_6/DeepIE/10mW_ft/'
 
         if not os.path.exists(save_path):
             os.makedirs(save_path)
@@ -125,16 +137,16 @@ if __name__ == '__main__':
             # starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
             # starter.record()
             if args_eval.doublestage:
-                iters = 1
+                iters = 3
             else:
                 iters = 2
-            # test(model, args_eval, test_dataloader, session_name, args_eval.data_property, 
-            #      iters=iters, warm_start=False, output_path=save_path)
+            test(model, args_eval, test_dataloader, session_name, args_eval.data_property, 
+                 iters=iters, warm_start=False, output_path=save_path)
+            
+            # test_2model(model, model2, args_eval, test_dataloader, session_name, args_eval.data_property,
+            #             iters=iters, warm_start=False, output_path=save_path)
 
-            test_tensorRT(engine, args_eval, test_dataloader, session_name, args_eval.data_property, output_path=save_path)
+            # test_tensorRT(engine, args_eval, test_dataloader, session_name, args_eval.data_property, output_path=save_path)
         print(directory_id)
-            # ender.record()
-            # curr_time = starter.elapsed_time(ender)
-            # print(curr_time)
 
 

@@ -1,12 +1,12 @@
 
 import torch.onnx
 import os 
-os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 from utils.utils import FlexibleNamespace
 import torch
 import torch.nn as nn
 from model.raft_trt import RAFT
-outf = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_90mW'
+outf = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_130mW'
 # Create a ConfigParser object
 tmp = FlexibleNamespace()
 # if os.path.exists(os.path.join(args_eval.model_path, 'args.json')):

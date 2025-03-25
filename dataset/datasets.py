@@ -299,13 +299,13 @@ class FinetuneDataset(data.Dataset):
         # let's read the hdf5 file
         self.hdf5_file = hdf5_file
         with h5py.File(self.hdf5_file, 'r') as file:
-            self.length = file['image_pairs'].shape[-1]  # size of h x w x 2 x n
+            self.length = file['image_pairs'].shape[0]  # size of h x w x 2 x n
             
     # follow suggestion from https://github.com/pytorch/pytorch/issues/11929
     def open_hdf5(self):
         self.img_hdf5 = h5py.File(self.hdf5_file, 'r')
         self.img_list = self.img_hdf5['image_pairs'] # if you want dataset.   
-        self.img_list = np.transpose(self.img_list, axes=(3,2,1,0))
+        # self.img_list = np.transpose(self.img_list, axes=(3,2,1,0))
         # mask_image
         # self.mask_list = self.img_hdf5['mask']
 

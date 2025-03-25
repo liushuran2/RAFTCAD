@@ -3,8 +3,9 @@ import sys
 
 import argparse
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
-# 0: blur20 1：frame_blur20 2: noise20 3:noise15
+os.environ["CUDA_VISIBLE_DEVICES"] = '2'
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+# 1: 2:  3: 110mW 4:70mW 5:ft10_44 6: 7: 
 import cv2
 import time
 import numpy as np
@@ -20,15 +21,12 @@ from torch.utils.data import Subset, SubsetRandomSampler, DataLoader
 
 # implemented
 from model.raft import RAFT
-from model.spynet import SPyNet
 from dataset.datasets import *
 from engine import *
-from model.loss import sequence_loss, sequence_maskedloss, sequence_data_loss
+from model.loss import sequence_data_loss, sequence_maskedloss
 
 
 # logging related
-import wandb 
-from wandb import sdk as wanbd_sdk
 import socket
 from datetime import datetime, timedelta
 
@@ -66,7 +64,7 @@ def train(args):
 
     ################## setup dataloader  
     # train dataset  
-    aug_params = {'crop_size': args.aug_image_size, 'min_scale': args.aug_min_scale, 'max_scale': args.aug_max_scale, 'do_flip': args.aug_flip}
+    aug_params = {'crop_size': args.aug_image_size, 'min_scale': args.aug_min_scale, 'max_scale': args.aug_max_scale, 'do_flip': args.aug_flip, 'do_rotate': args.aug_rotate}
     # aug_params = None
     train_dataset = FinetuneDataset(args, args.data_path, aug_params)
 
@@ -88,20 +86,20 @@ def train(args):
 
     # train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, sampler=train_sampler,
     #                                                worker_init_fn=worker_init_fn)
-    val_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, sampler=val_sampler,
-                                                 num_workers=1, pin_memory=True, persistent_workers=True,
+    val_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, sampler=val_sampler, shuffle=False,
+                                                 num_workers=args.workers, pin_memory=True, persistent_workers=True,
                                                  drop_last=True, worker_init_fn=worker_init_fn)
 
     # test dataset, no shuffle. 
     test_dataloader_array = []
     args.data_property  = []
-    # for datapath in  args.test_file:
-    #     test_dataset = FlowTestDataset(args, datapath)
-    #     args.data_property.append(test_dataset.data_property) # call the data_property for getting the data info
-    #     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, # note shuffle is disabled, and batchsize has to be 1
-    #                                                     num_workers=args.workers, pin_memory=True, persistent_workers=True,
-    #                                                     drop_last=False, worker_init_fn=worker_init_fn)
-    #     test_dataloader_array.append(test_dataloader)
+    for datapath in  args.test_file:
+        test_dataset = FlowTestDataset(args, datapath)
+        args.data_property.append(test_dataset.data_property) # call the data_property for getting the data info
+        test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, # note shuffle is disabled, and batchsize has to be 1
+                                                        num_workers=args.workers, pin_memory=True, persistent_workers=True,
+                                                        drop_last=False, worker_init_fn=worker_init_fn)
+        test_dataloader_array.append(test_dataloader)
     ################## Building model
     model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
     # model = RAFT(args)
@@ -119,14 +117,16 @@ def train(args):
     # to GPU
     model.cuda()
 
+    # only train the 3dUNet
+    if args.fix:
+        for name, param in model.named_parameters():    
+            if 'Unet' in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
+
     # set to train mode
     model.train()
-
-    # 将模型所有参数的 requires_grad 设置为 False
-    for param in model.parameters():
-        param.requires_grad = False
-    for param in model.module.Unet.parameters():
-        param.requires_grad = True
 
     # optimizer and scheduler
     args.num_steps = len(train_dataloader) * args.epochs
@@ -155,42 +155,19 @@ def train(args):
 
     if args.start_epoch < 0:
         if checkpoint is not None:
-            args.start_epoch = checkpoint['epoch'] 
+            args.start_epoch = checkpoint['epoch']
         args.start_epoch = max(args.start_epoch, 0)
-
-
-    ################## before run, configure wand
-    if args.wandb_flag:
-        wandb.init(
-            # mode="offline",
-            # Set the project where this run will be logged
-            project=args.project_name, 
-            # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
-            name=f"hnerv_large_data_{args.outf}", 
-            # Track hyperparameters and run metadata
-            config={
-                "lr": args.lr,
-                "architecture": "CNN",
-                "dataset": args.data_path,
-                "epochs": args.epochs,
-            },
-            dir=args.outf # this makes saving logs not in the default dir
-        )
-        wandb.config.update(args)
-        # watch everything
-        wandb.watch(models=model,log='all') # note the default log frequency is 1k steps
 
     ################## Training
     start = datetime.now()
     best_pred_loss = float('inf')
     time_per_epoch_list = []
-    
-    for epoch in range(args.start_epoch, args.epochs): # loop over the dataset multiple times
+    for epoch in range(0, args.epochs): # loop over the dataset multiple times
         epoch_start_time = time.time()
 
         # train one epoch
-        train_loss_list, train_epe_list = finetune_one_epoch(model, optimizer, criterion, scheduler, train_dataloader, scaler, epoch, args, start, writer)
-        # average_epe = np.mean(np.array(train_epe_list))
+        train_loss_list = finetune_one_epoch(model, optimizer, criterion, scheduler, train_dataloader, scaler, epoch, args, start, writer)
+
         average_loss = np.mean(np.array(train_loss_list))
             
         # save model. 
@@ -212,7 +189,7 @@ def train(args):
             # save best based on metrics
             if average_data_loss < best_pred_loss:
                 best_pred_loss = average_data_loss
-                torch.save(save_checkpoint, f'{args.outf}/model_best.pth') 
+                torch.save(save_checkpoint, f'{args.outf}/model_best.pth')
         # save the last
         torch.save(save_checkpoint, '{}/model_latest.pth'.format(args.outf))
         if (epoch + 1) % args.epochs == 0:
@@ -233,9 +210,9 @@ def train(args):
 
         
     ############# do the testing after the training
-    # for i, (test_dataloader, test_file_name) in enumerate(zip(test_dataloader_array, args.test_file)):
-    #     session_name = test_file_name.split('/')[-1].split('.')[0]
-    #     test(model, args, test_dataloader, session_name, args.data_property[i], iters=32, warm_start=False, output_path=args.outf)
+    for i, (test_dataloader, test_file_name) in enumerate(zip(test_dataloader_array, args.test_file)):
+        session_name = test_file_name.split('/')[-1].split('.')[0]
+        test(model, args, test_dataloader, session_name, args.data_property[i], iters=32, warm_start=False, output_path=args.outf)
     
     writer.close()  
 
@@ -243,14 +220,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # high-level settings
     parser.add_argument('--project_name', type=str, default='RAFT', help='this used for wandb saving')
-    parser.add_argument('--data_path', type=str, default='DATA/2p_mini2p_N_300_stack_8_multiscale.h5', help='data path for vid')
-    parser.add_argument('--outf', type=str, default='checkpt/mini2p', help='data path for vid')
+    parser.add_argument('--data_path', type=str, default='/mnt/nas02/LSR/DATA/NAOMi_dataset/N_180_axon_stack_24.h5', help='data path for vid')
+    parser.add_argument('--outf', type=str, default='/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_axon_stack_24_50mW_ft10mW', help='data path for vid')
     # parser.add_argument('--data_path', type=str, default='../../Dataset/Gen_motion_free_pair_frame/N_99_scale_10.h5', help='data path for vid')
     parser.add_argument('--norm_type', type=str, default='robust', help='video normalization methods')
     parser.add_argument('--wandb_flag', type=bool, default=False)
     parser.add_argument('-p', '--print-freq', default=100, type=int)
     # test file
-    parser.add_argument('--test_file', type=str, nargs='+', default=[''], 
+    parser.add_argument('--test_file', type=str, nargs='+', default=[], 
                         help='test file for evaluation')
     # parser.add_argument('--test_file', type=str, nargs='+', default=['../../Dataset/exp_dataset/148d_1.tif', 
     #                                                                  '../../Dataset/exp_dataset/148d_2.tif', ], 
@@ -258,25 +235,26 @@ if __name__ == '__main__':
 
     # dataset and data augmentation
     parser.add_argument('--val_split', type=float, default=0.2)
-    parser.add_argument('-j', '--workers', type=int, default=4, help='number of data loading workers')
-    parser.add_argument('--aug_image_size', type=int, nargs='+', default=[256, 256])
+    parser.add_argument('-j', '--workers', type=int, default=1, help='number of data loading workers')
+    parser.add_argument('--aug_image_size', type=int, nargs='+', default=[256,256])
     parser.add_argument('--aug_min_scale', type=float, default=0.2, help='Minimum scale for augmentation')
     parser.add_argument('--aug_max_scale', type=float, default=0.5, help='Maximum scale for augmentation')
     parser.add_argument('--aug_flip', type=bool, default=True, help='Whether to flip the image for augmentation')
+    parser.add_argument('--aug_rotate', type=bool, default=True, help='Whether to rotate the image for augmentation')
 
     # General training setups
     parser.add_argument('--manualSeed', type=int, default=13, help='manual seed')
-    parser.add_argument('--start_epoch', type=int, default=0, help='starting epoch')
-    parser.add_argument('-e', '--epochs', type=int, default=80, help='Epoch number')
-    parser.add_argument('--eval_freq', type=int, default=10, help='evaluation frequency,  added to suffix!!!!')
+    parser.add_argument('--start_epoch', type=int, default=-1, help='starting epoch')
+    parser.add_argument('-e', '--epochs', type=int, default=60, help='Epoch number')
+    parser.add_argument('--eval_freq', type=int, default=1, help='evaluation frequency,  added to suffix!!!!')
     parser.add_argument('--not_resume', action='store_true', default = False, help='not resume from latest checkpoint')
 
-    parser.add_argument('-b', '--batchSize', type=int, default=1, help='input batch size')
+    parser.add_argument('-b', '--batchSize', type=int, default=2, help='input batch size')
     parser.add_argument('--gpus', type=int, nargs='+', default=[0])
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
 
     # optimizer, for AdamW
-    parser.add_argument('--lr', type=float, default=.5e-5)
+    parser.add_argument('--lr', type=float, default=1e-5)
     parser.add_argument('--wdecay', type=float, default=.00005)
     parser.add_argument('--epsilon', type=float, default=1e-8)
 
@@ -296,6 +274,7 @@ if __name__ == '__main__':
     # model config
     parser.add_argument('--small', action='store_true', default=False, help='use small model')
     parser.add_argument('--iters', type=int, default=12)
+    parser.add_argument('--fix', action='store_true', default=True, help='fix the RAFT part')
 
     # parser
     args = parser.parse_args()

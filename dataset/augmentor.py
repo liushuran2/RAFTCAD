@@ -102,6 +102,27 @@ class FlowAugmentor:
                 factor = np.array([-1.0, 1.0])
 
                 flow = flow * factor[None, :, None, None]
+
+        if self.do_rotate:
+            if np.random.rand() < self.left_rotate_prob:
+                img = np.rot90(img, k=1, axes=(2, 3))
+                # flow = np.rot90(flow, k=1, axes=(2, 3))
+
+                flow_tmp = flow.copy()
+                flow[:, 1, :, :] = -flow_tmp[:, 0, :, :]
+                flow[:, 0, :, :] = flow_tmp[:, 1, :, :]
+
+                flow = np.rot90(flow, k=1, axes=(2, 3))
+
+            if np.random.rand() < self.right_rotate_prob:
+                img = np.rot90(img, k=3, axes=(2, 3))
+                # flow = np.rot90(flow, k=3, axes=(2, 3))
+
+                flow_tmp = flow.copy()
+                flow[:, 1, :, :] = flow_tmp[:, 0, :, :]
+                flow[:, 0, :, :] = -flow_tmp[:, 1, :, :]
+                # flow[:, 0, :, :] = 0
+                flow = np.rot90(flow, k=3, axes=(2, 3))
         if img.shape[0] - self.crop_size[0] == 0:
             y0 = 0
             x0 = 0
@@ -143,7 +164,7 @@ class FlowAugmentor:
 
 #  modify for non-colorful images
 class FinetuneAugmentor:
-    def __init__(self, crop_size, min_scale=-0.2, max_scale=0.5, do_flip=True):
+    def __init__(self, crop_size, min_scale=-0.2, max_scale=0.5, do_flip=True, do_rotate=True):
         
         # spatial augmentation params
         self.crop_size = crop_size
@@ -155,8 +176,11 @@ class FinetuneAugmentor:
 
         # flip augmentation params
         self.do_flip = do_flip
+        self.do_rotate = do_rotate
         self.h_flip_prob = 0.5
         self.v_flip_prob = 0.5
+        self.left_rotate_prob = 0.5
+        self.right_rotate_prob = 0.5
 
         # erase augmentation params
         self.eraser_aug_prob = 0.3
@@ -188,42 +212,42 @@ class FinetuneAugmentor:
             # rescale the images
             img = zoom(img, (1, 1, scale_x, scale_y))
             
-            flow = zoom(flow, (1, 1, scale_x, scale_y))
+            # flow = zoom(flow, (1, 1, scale_x, scale_y))
 
             factor = np.array([scale_x, scale_y])
-            flow = flow * factor[None, :, None, None]
+            # flow = flow * factor[None, :, None, None]
 
         if self.do_flip:
             if np.random.rand() < self.h_flip_prob: # h-flip
                 img = np.flip(img, axis=2)
-                flow = np.flip(flow, axis=2)
+                # flow = np.flip(flow, axis=2)
 
-                factor = np.array([1.0, -1.0])
-                flow = flow * factor[None, :, None, None]   
+                # factor = np.array([1.0, -1.0])
+                # flow = flow * factor[None, :, None, None]   
 
             if np.random.rand() < self.v_flip_prob: # v-flip
                 img = np.flip(img, axis=3)
-                flow = np.flip(flow, axis=3)
+                # flow = np.flip(flow, axis=3)
 
-                factor = np.array([-1.0, 1.0])
-                flow = flow * factor[None, :, None, None]
+                # factor = np.array([-1.0, 1.0])
+                # flow = flow * factor[None, :, None, None]
 
         if self.do_rotate:
             if np.random.rand() < self.left_rotate_prob:
                 img = np.rot90(img, k=1, axes=(2, 3))
-                flow = np.rot90(flow, k=1, axes=(2, 3))
+                # flow = np.rot90(flow, k=1, axes=(2, 3))
 
-                flow_tmp = flow
-                flow[:, 0, :, :] = -flow_tmp[:, 1, :, :]
-                flow[:, 1, :, :] = flow_tmp[:, 0, :, :]
+                # flow_tmp = flow
+                # flow[:, 0, :, :] = -flow_tmp[:, 1, :, :]
+                # flow[:, 1, :, :] = flow_tmp[:, 0, :, :]
 
             if np.random.rand() < self.right_rotate_prob:
                 img = np.rot90(img, k=3, axes=(2, 3))
-                flow = np.rot90(flow, k=3, axes=(2, 3))
+                # flow = np.rot90(flow, k=3, axes=(2, 3))
 
-                flow_tmp = flow
-                flow[:, 0, :, :] = flow_tmp[:, 1, :, :]
-                flow[:, 1, :, :] = -flow_tmp[:, 0, :, :]
+                # flow_tmp = flow
+                # flow[:, 0, :, :] = flow_tmp[:, 1, :, :]
+                # flow[:, 1, :, :] = -flow_tmp[:, 0, :, :]
 
         if img.shape[0] - self.crop_size[0] == 0:
             y0 = 0

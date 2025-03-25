@@ -52,8 +52,8 @@ def build_engine(onnx_file_path, trt_model_path, max_workspace_size=1 << 36, fp1
 
 
 # 示例调用
-onnx_model_path = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_90mW/DeepIE_tensorRT.onnx'
-trt_model_path = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_90mW/DeepIE_tensorRT.trt'
+onnx_model_path = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_130mW/DeepIE_tensorRT.onnx'
+trt_model_path = '/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_stack_3600_130mW/DeepIE_tensorRT.trt'
 engine = build_engine(onnx_model_path, trt_model_path, fp16_mode=True)
 
 

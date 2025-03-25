@@ -84,15 +84,12 @@ def train_one_epoch(model, optimizer, criterion, scheduler, train_dataloader, sc
             # image1, image2, flow, gt, mask, valid = [data_to_gpu(x, device) for x in data_blob]
         
         # write image
-        # io.imsave(os.path.join('test', 'image_ori.tif'), image[0,:,0].detach().cpu().numpy().squeeze())
-        # image2 = image[0].permute(0, 2, 3, 1).cpu().numpy() # H x W x C
-        # flow_gt = flow[0].detach().cpu().numpy().squeeze()
-        # flow_gt = np.transpose(np.array(flow_gt), (0, 2, 3, 1))
-        # image2_warped = image_warp(image2, -flow_gt) # out H x W x C frame 2
-        # io.imsave(os.path.join('test', 'image_warp.tif'), image2_warped.squeeze())
-        # image1_mask = image1 * mask
-        # image1_mask = image1_mask[2].detach().cpu().numpy().squeeze()
-        # cv2.imwrite(os.path.join('test', 'image1_mask.tiff'), image1_mask)
+        io.imsave(os.path.join('test', 'image_ori.tif'), image[0,:,0].detach().cpu().numpy().squeeze())
+        image2 = image[0].permute(0, 2, 3, 1).cpu().numpy() # H x W x C
+        flow_gt = flow[0].detach().cpu().numpy().squeeze()
+        flow_gt = np.transpose(np.array(flow_gt), (0, 2, 3, 1))
+        image2_warped = image_warp(image2, -flow_gt) # out H x W x C frame 2
+        io.imsave(os.path.join('test', 'image_warp.tif'), image2_warped.squeeze())
 
         # learning rate adjustment, if one need to adjust it during the scheduler
         norm_epoch = (epoch + float(i) / len(train_dataloader)) / args.epochs
@@ -155,7 +152,10 @@ def train_one_epoch(model, optimizer, criterion, scheduler, train_dataloader, sc
             # mask_image
             # loss, metrics = criterion(flow_predictions, flow, valid, mask, args.gamma)
 
-            loss = flow_loss * 0.5 + data_loss * 0.5
+            if args.fix:
+                loss = data_loss
+            else:   
+                loss = flow_loss * 0.5 + data_loss * 0.5
 
             # loss += frame_wise_loss*2
             # loss = frame_wise_loss
@@ -378,8 +378,8 @@ def test(model, args, dataloader, session_name, data_property, iters=12, warm_st
     flow_list = []
     # go over frames
     steps = len(dataloader)
-    batch_size = 20
-    overlap_size = 3
+    batch_size = 10
+    overlap_size = 2
     for i, (image,template) in enumerate(dataloader):
         image, template = [data_to_gpu(x, device) for x in [image, template]]
         template = template.unsqueeze(0)
@@ -804,7 +804,7 @@ def finetune_one_epoch(model, optimizer, criterion, scheduler, train_dataloader,
     print("Time/epoch: \tCurrent:{:.2f} \tAverage:{:.2f}".format( (epoch_end_time - epoch_start_time).total_seconds(), \
             (epoch_end_time - start_time).total_seconds() / (epoch + 1 - args.start_epoch) ))
     
-    return pred_loss_list, pred_epe_list
+    return pred_loss_list
 
 @torch.no_grad()
 def finetune_evaluate(model, criterion, full_dataloader, args, epoch, writer=None):

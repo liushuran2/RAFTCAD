@@ -63,23 +63,30 @@ from utils.frame_utils import image_warp
 
 # from your_module import imregister_wrapper
 
-source_dir = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200/NA_0.80_Hz_30_D_0_pow_150'  # 源文件夹
+source_dir = '/mnt/nas01/LSR/DATA/2p_bench/HP01/HCA301-Axon-P5-oir/HCA301-Axon-P5-oir'  # 源文件夹
 dirinfo = os.listdir(source_dir)
-N_pair_per_file = 30  # 这个值需要根据你的实际情况设定
-frame_N = 1000  # 这个值需要根据你的实际情况设定
+N_pair_per_file = 20  # 这个值需要根据你的实际情况设定
+frame_N = 200  # 这个值需要根据你的实际情况设定
 scale_x = 10  # 根据你的实际情况设置
 stack_length = 24  # 根据你的实际情况设置
 
-imagePairs = np.zeros((len(dirinfo) * N_pair_per_file, stack_length, 512, 512), dtype=np.float32)  # 假设大小为 256x256
-motion_field = np.zeros((len(dirinfo) * N_pair_per_file, stack_length, 2, 512, 512), dtype=np.float32)
+imagePairs = np.zeros((9 * N_pair_per_file, stack_length, 512, 512), dtype=np.float32)  # 假设大小为 256x256
 
 ind = 0
 
-for i, dir_name in enumerate(dirinfo):
-    curr_dir = os.path.join(source_dir, dir_name)
+file_name_list = []
+for file in dirinfo:
+    if file.endswith('-1.tif'):
+        file_name_list.append(os.path.join(source_dir, file))
+# file_name_list.append(source_dir + 'HCA301-250109-ABC-2-P5-AXON_00001-1.tif')
+# file_name_list.append(source_dir + '97288_20210315_00003.tif')
+# file_name_list.append('Fsim_30mW.tiff')
+# file_name_list.append('Fsim_30mW.tiff')
+for i, file_name in enumerate(file_name_list):
+    # curr_dir = os.path.join(source_dir, dir_name)
     
     # 读取两帧图像
-    file_name = os.path.join(curr_dir, 'Fsim_30mW.tiff')
+    # file_name = os.path.join(curr_dir, 'Fsim_30mW.tiff')
     # neuron_mask_path = os.path.join(curr_dir, 'NeuronMask.mat')  # 假设此处是读取 `.mat` 文件
     frames = tiff.imread(file_name)
 
@@ -94,23 +101,8 @@ for i, dir_name in enumerate(dirinfo):
             index_2 = index_1 + frame_idx - 1
             frame_2 = frames[index_2]
 
-            random_integer = random.randint(0, 10)
-            u = np.random.rand(5 + random_integer, 5 + random_integer) - 0.5
-            v = np.random.rand(5 + random_integer, 5 + random_integer) - 0.5
-            u = u * scale_x
-            v = v * scale_x
-
-            # 调整 u 和 v 的大小
-            u = zoom(u, (frame_1.shape[0] / u.shape[0], frame_1.shape[1] / u.shape[1]), order=3)
-            v = zoom(v, (frame_1.shape[0] / v.shape[0], frame_1.shape[1] / v.shape[1]), order=3)
-
-            # 进行图像扭曲
-            # warp_frame_2 = imregister_wrapper(frame_2, u, v)
-            w = np.stack((u, v), axis=-1)
-            warp_frame_2 = image_warp(frame_2, w)
+            warp_frame_2 = frame_2
             imagePairs[ind, frame_idx - 1, :, :] = warp_frame_2.astype(np.float32)
-            motion_field[ind, frame_idx - 1, 0, :, :] = u.astype(np.float32)
-            motion_field[ind, frame_idx - 1, 1, :, :] = v.astype(np.float32)
 
         max_val = np.max(imagePairs[ind, :, :, :])
         # imagePairs[ind, :, :, :] /= max_val  # 如果需要归一化
@@ -120,14 +112,11 @@ for i, dir_name in enumerate(dirinfo):
 
 
 # 定义文件名
-filename = f'/mnt/nas02/LSR/DATA/NAOMi_dataset/N_{imagePairs.shape[0]}_scale_{scale_x}_stack_24_multiscale_10mW.h5'
+filename = f'/mnt/nas02/LSR/DATA/NAOMi_dataset/N_{imagePairs.shape[0]}_axon_stack_24.h5'
 
 # 创建 HDF5 文件并保存数据
 with h5py.File(filename, 'w') as f:
     # 创建并写入 '/image_pairs' 数据集
     f.create_dataset('/image_pairs', data=imagePairs, dtype='float32')
-
-    # 创建并写入 '/motions' 数据集
-    f.create_dataset('/motions', data=motion_field, dtype='float32')
 
 

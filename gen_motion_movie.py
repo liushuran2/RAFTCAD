@@ -72,16 +72,16 @@ scale_x = 2  # 根据你的实际情况设置
 clip_length = frame_N // N_pair_per_file
 
 # save path
-save_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2'
-raw_path_10mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2/10mW'
-raw_path_30mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2/30mW'
-raw_path_50mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2/50mW'
-raw_path_70mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2/70mW'
-raw_path_90mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2/90mW'
-raw_path_110mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2/110mW'
-raw_path_130mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2/130mW'
-raw_path_150mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2/150mW'
-gt_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_2/gt'
+save_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6'
+raw_path_10mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/10mW'
+raw_path_30mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/30mW'
+raw_path_50mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/50mW'
+raw_path_70mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/70mW'
+raw_path_90mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/90mW'
+raw_path_110mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/110mW'
+raw_path_130mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/130mW'
+raw_path_150mW = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/150mW'
+gt_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test/test_dataset/scale_6/gt'
 # mkdir
 if not os.path.exists(save_path):
     os.makedirs(save_path)
